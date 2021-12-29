@@ -1,4 +1,8 @@
 use std::io::{Write, stdout, Stdout, stdin};
+use std::sync::mpsc::{Sender, Receiver};
+use std::sync::mpsc;
+use std::thread;
+use std::time::Duration;
 use rand::prelude::ThreadRng;
 use termion::raw::{IntoRawMode, RawTerminal};
 use termion::screen::AlternateScreen;
@@ -57,11 +61,24 @@ fn main() {
         gen_raindrop(dimensions, &mut rng, &mut raindrops);
     }
 
+    let (sendDrop, recieveDrop): (Sender<Vec<Raindrop>>, Receiver<Vec<Raindrop>>) = mpsc::channel();
+
     let mut screen = AlternateScreen::from(stdout().into_raw_mode().unwrap());
     let stdin = stdin();
-    // write!(screen, "test test \n \n \n").unwrap();
+
     write!(screen, "{}", termion::cursor::Hide).unwrap();
     draw(dimensions, &mut screen, &raindrops);
+
+    let thread_send_drop = sendDrop.clone();
+    let drawThread = thread::spawn(move || {
+        loop {
+            update(dimensions, &mut rng, &mut raindrops);
+            thread_send_drop.send(raindrops).unwrap();
+            thread::sleep(Duration::from_millis(500));
+        }
+    });
+
+
     screen.flush().unwrap();
 
     for c in stdin.keys() {
